@@ -1,91 +1,82 @@
 package drift
 
-import (
-	"fmt"
-	"strings"
-)
-
-// DriftResult holds the result of a drift check for a single service.
-type DriftResult struct {
-	ServiceName string
-	Drifted     bool
-	Diffs       []string
+// Detail describes a single drift discrepancy for a service field.
+type Detail struct {
+	Service  string
+	Field    string
+	Declared string
+	Live     string
 }
 
-// ServiceState represents the declared state of a service from config.
-type ServiceState struct {
-	Name    string
-	Image   string
-	Replicas int
-	Env     map[string]string
+// Summary holds the aggregated results of a drift detection run.
+type Summary struct {
+	Total   int
+	Drifted int
+	Missing int
+	Details []Detail
 }
 
-// DeployedState represents the actual running state of a service.
-type DeployedState struct {
-	Name    string
-	Image   string
-	Replicas int
-	Env     map[string]string
+// ServiceSpec is the declared desired state of a service.
+type ServiceSpec struct {
+	Name  string
+	Image string
+	Env   map[string]string
 }
 
-// Detect compares declared service states against deployed states and returns drift results.
-func Detect(declared []ServiceState, deployed map[string]DeployedState) ([]DriftResult, error) {
-	if declared == nil {
-		return nil, fmt.Errorf("declared service states must not be nil")
-	}
+// LiveState represents the observed running state of a service.
+type LiveState struct {
+	Name  string
+	Image string
+	Env   map[string]string
+}
 
-	results := make([]DriftResult, 0, len(declared))
+// Detect compares declared service specs against live states and returns a Summary.
+func Detect(declared []ServiceSpec, live map[string]LiveState) Summary {
+	summary := Summary{Total: len(declared)}
 
-	for _, svc := range declared {
-		result := DriftResult{ServiceName: svc.Name}
-
-		actual, found := deployed[svc.Name]
+	for _, spec := range declared {
+		state, found := live[spec.Name]
 		if !found {
-			result.Drifted = true
-			result.Diffs = append(result.Diffs, fmt.Sprintf("service %q not found in deployed state", svc.Name))
-			results = append(results, result)
+			summary.Missing++
+			summary.Drifted++
+			summary.Details = append(summary.Details, Detail{
+				Service:  spec.Name,
+				Field:    "existence",
+				Declared: "present",
+				Live:     "missing",
+			})
 			continue
 		}
 
-		if svc.Image != actual.Image {
-			result.Diffs = append(result.Diffs, fmt.Sprintf("image: declared=%q actual=%q", svc.Image, actual.Image))
+		serviceDrifted := false
+
+		if spec.Image != state.Image {
+			serviceDrifted = true
+			summary.Details = append(summary.Details, Detail{
+				Service:  spec.Name,
+				Field:    "image",
+				Declared: spec.Image,
+				Live:     state.Image,
+			})
 		}
 
-		if svc.Replicas != actual.Replicas {
-			result.Diffs = append(result.Diffs, fmt.Sprintf("replicas: declared=%d actual=%d", svc.Replicas, actual.Replicas))
-		}
-
-		for k, declaredVal := range svc.Env {
-			actualVal, ok := actual.Env[k]
-			if !ok {
-				result.Diffs = append(result.Diffs, fmt.Sprintf("env %q: declared=%q actual=<missing>", k, declaredVal))
-			} else if declaredVal != actualVal {
-				result.Diffs = append(result.Diffs, fmt.Sprintf("env %q: declared=%q actual=%q", k, declaredVal, actualVal))
+		for k, declaredVal := range spec.Env {
+			liveVal, ok := state.Env[k]
+			if !ok || liveVal != declaredVal {
+				serviceDrifted = true
+				summary.Details = append(summary.Details, Detail{
+					Service:  spec.Name,
+					Field:    "env:" + k,
+					Declared: declaredVal,
+					Live:     liveVal,
+				})
 			}
 		}
 
-		if len(result.Diffs) > 0 {
-			result.Drifted = true
-		}
-
-		results = append(results, result)
-	}
-
-	return results, nil
-}
-
-// Summary returns a human-readable summary of all drift results.
-func Summary(results []DriftResult) string {
-	var sb strings.Builder
-	for _, r := range results {
-		if r.Drifted {
-			sb.WriteString(fmt.Sprintf("[DRIFT] %s\n", r.ServiceName))
-			for _, d := range r.Diffs {
-				sb.WriteString(fmt.Sprintf("  - %s\n", d))
-			}
-		} else {
-			sb.WriteString(fmt.Sprintf("[OK]    %s\n", r.ServiceName))
+		if serviceDrifted {
+			summary.Drifted++
 		}
 	}
-	return sb.String()
+
+	return summary
 }
