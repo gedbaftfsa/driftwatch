@@ -1,37 +1,24 @@
 package drift
 
-// Summary aggregates the results of a drift detection run.
+// Summary holds the result of comparing a single service's
+// declared config against its live runtime state.
 type Summary struct {
-	Total   int       `json:"total"`
-	Drifted int       `json:"drifted"`
-	Clean   int       `json:"clean"`
-	Results []Result  `json:"results"`
+	ServiceName string
+	Drifted     bool
+	Diffs       []string
 }
 
-// Result holds drift information for a single service.
-type Result struct {
-	Service string `json:"service"`
-	Drifted bool   `json:"drifted"`
-	Reasons []string `json:"reasons,omitempty"`
-}
-
-// Summarize builds a Summary from a slice of Results.
-func Summarize(results []Result) Summary {
-	s := Summary{
-		Total:   len(results),
-		Results: results,
-	}
+// Summarize converts a slice of DetectResult into a slice of Summary,
+// keeping only entries that have at least one diff or are explicitly missing.
+func Summarize(results []DetectResult) []Summary {
+	var summaries []Summary
 	for _, r := range results {
-		if r.Drifted {
-			s.Drifted++
-		} else {
-			s.Clean++
+		s := Summary{
+			ServiceName: r.ServiceName,
+			Drifted:     len(r.Diffs) > 0,
+			Diffs:       r.Diffs,
 		}
+		summaries = append(summaries, s)
 	}
-	return s
-}
-
-// HasDrift returns true if any service in the summary has drifted.
-func (s Summary) HasDrift() bool {
-	return s.Drifted > 0
+	return summaries
 }
