@@ -1,0 +1,41 @@
+# driftwatch example configuration
+# Declare the desired state of your services here.
+# driftwatch will compare this against live deployments and report drift.
+
+version: "1"
+
+services:
+  - name: api-gateway
+    image: myorg/api-gateway:v2.3.1
+    replicas: 2
+    ports:
+      - 8080
+      - 8443
+    environment:
+      LOG_LEVEL: info
+      METRICS_ENABLED: "true"
+    resources:
+      cpu: "500m"
+      memory: "512Mi"
+
+  - name: user-service
+    image: myorg/user-service:v1.4.0
+    replicas: 3
+    ports:
+      - 9090
+    environment:
+      LOG_LEVEL: warn
+      DB_POOL_SIZE: "10"
+    resources:
+      cpu: "250m"
+      memory: "256Mi"
+
+  - name: notification-worker
+    image: myorg/notification-worker:v0.9.2
+    replicas: 1
+    ports: []
+    environment:
+      QUEUE_URL: amqp://rabbitmq:5672
+    resources:
+      cpu: "100m"
+      memory: "128Mi"
