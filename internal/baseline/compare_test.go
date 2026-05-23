@@ -6,6 +6,13 @@ import (
 	"github.com/example/driftwatch/internal/baseline"
 )
 
+// makeBaseline returns a baseline snapshot used across multiple test cases.
+func makeBaseline() map[string]baseline.Service {
+	return map[string]baseline.Service{
+		"api": {Name: "api", Image: "api:1.0", Replicas: 2, Environment: map[string]string{"LOG_LEVEL": "info"}},
+	}
+}
+
 func TestCompare_NoDrift(t *testing.T) {
 	b := makeBaseline()
 	current := map[string]baseline.Service{
