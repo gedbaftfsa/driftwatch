@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/driftwatch/internal/drift"
@@ -12,8 +13,8 @@ import (
 
 // Snapshot holds a point-in-time record of drift detection results.
 type Snapshot struct {
-	Timestamp time.Time      `json:"timestamp"`
-	Summary   drift.Summary  `json:"summary"`
+	Timestamp time.Time     `json:"timestamp"`
+	Summary   drift.Summary `json:"summary"`
 }
 
 // Store manages reading and writing snapshots to disk.
@@ -55,4 +56,18 @@ func (s *Store) Load(path string) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("snapshot: unmarshal %q: %w", path, err)
 	}
 	return snap, nil
+}
+
+// Latest returns the most recently saved snapshot in the store directory,
+// or an error if no snapshots exist.
+func (s *Store) Latest() (Snapshot, error) {
+	matches, err := filepath.Glob(filepath.Join(s.Dir, "snapshot-*.json"))
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("snapshot: glob: %w", err)
+	}
+	if len(matches) == 0 {
+		return Snapshot{}, fmt.Errorf("snapshot: no snapshots found in %q", s.Dir)
+	}
+	sort.Strings(matches)
+	return s.Load(matches[len(matches)-1])
 }
