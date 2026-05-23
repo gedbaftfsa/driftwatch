@@ -76,3 +76,10 @@ func Compare(b *Baseline, current map[string]Service) []Delta {
 
 	return deltas
 }
+
+// HasDrift returns true if Compare finds any differences between the baseline
+// and the current state. It is a convenience wrapper for callers that only
+// need to know whether drift exists, not the full list of deltas.
+func HasDrift(b *Baseline, current map[string]Service) bool {
+	return len(Compare(b, current)) > 0
+}
